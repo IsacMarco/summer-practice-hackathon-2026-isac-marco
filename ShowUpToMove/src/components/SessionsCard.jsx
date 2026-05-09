@@ -56,19 +56,13 @@ export default function SessionsCard({
                 onMouseLeave={() => setHoveredInfoSessionId('')}
               >
                 <div className="flex items-center justify-between">
-                  {isJoined ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenSessionDetails(session._id)}
-                      className="font-semibold text-left text-slate-900 underline-offset-2 hover:underline"
-                    >
-                      {session.name || session.sport?.name || 'Session'}
-                    </button>
-                  ) : (
-                    <span className="font-semibold text-slate-900">
-                      {session.name || session.sport?.name || 'Session'}
-                    </span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenSessionDetails(session._id)}
+                    className="font-semibold text-left text-slate-900 underline-offset-2 hover:underline"
+                  >
+                    {session.name || session.sport?.name || 'Session'}
+                  </button>
                   <span className="text-xs uppercase tracking-wider">
                     {session.participants?.length || 0} players
                   </span>
@@ -84,7 +78,7 @@ export default function SessionsCard({
                 {levels && <p className="mt-2 text-xs text-slate-500">Looking for: {levels}</p>}
               </div>
               {hoveredInfoSessionId === session._id && (
-                <div className="pointer-events-none absolute -top-2 right-2 z-10 w-80 rounded-2xl border border-indigo-100 bg-white p-4 shadow-xl">
+                <div className="pointer-events-none absolute -top-2 right-2 z-10 hidden w-80 rounded-2xl border border-indigo-100 bg-white p-4 shadow-xl md:block">
                 <p className="text-sm font-semibold text-slate-900">
                   {session.name || session.sport?.name || 'Session'}
                 </p>
