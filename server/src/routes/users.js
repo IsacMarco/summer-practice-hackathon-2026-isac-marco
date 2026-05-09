@@ -88,21 +88,39 @@ Bio: ${bio}
       },
     )
 
-  let response = await callGemini('gemini-2.0-flash')
-  if (!response.ok) {
-    response = await callGemini('gemini-1.5-flash')
-  }
-  if (!response.ok) {
-    response = await callGemini('gemini-1.5-flash-8b')
-  }
+  const modelsToTry = [
+    'gemma-3-27b-it',
+    'gemma-3-12b-it',
+    'gemma-3-4b-it',
+    'gemma-2-27b-it',
+    'gemma-2-9b-it',
+    'gemma-2-2b-it',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+  ]
 
-  if (!response.ok) {
-    let reason = 'AI suggestion failed'
+  let response = null
+  let lastErrorMessage = ''
+  for (const model of modelsToTry) {
+    response = await callGemini(model)
+    if (response.ok) {
+      break
+    }
     try {
       const errPayload = await response.json()
-      reason = errPayload?.error?.message || reason
-    } catch {}
-    return res.status(502).json({ error: reason })
+      lastErrorMessage = errPayload?.error?.message || ''
+    } catch {
+      lastErrorMessage = ''
+    }
+  }
+
+  if (!response || !response.ok) {
+    return res.status(502).json({
+      error:
+        lastErrorMessage ||
+        'AI suggestion failed. None of the configured Gemma/Gemini models are available for this API key.',
+    })
   }
 
   const payload = await response.json()
