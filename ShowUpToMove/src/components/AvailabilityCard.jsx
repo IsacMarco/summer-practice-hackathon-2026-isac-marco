@@ -19,9 +19,9 @@ export default function AvailabilityCard({
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
                 <button
-                    className={`rounded-full px-5 py-3 text-sm font-semibold uppercase tracking-wider transition ${availabilityStatus === 'yes'
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-white text-emerald-600 border border-emerald-200'
+                    className={`rounded-full hover:bg-emerald-600 hover:text-white px-5 py-3 text-sm font-semibold uppercase tracking-wider transition ${availabilityStatus === 'yes'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-white text-emerald-600 border border-emerald-200'
                         }`}
                     onClick={() => onUpdateAvailability(true)}
                     type="button"
@@ -29,9 +29,9 @@ export default function AvailabilityCard({
                     Yes, match me
                 </button>
                 <button
-                    className={`rounded-full px-5 py-3 text-sm font-semibold uppercase tracking-wider transition ${availabilityStatus === 'no'
-                            ? 'bg-slate-700 text-white'
-                            : 'bg-white text-slate-600 border border-slate-200'
+                    className={`rounded-full hover:bg-slate-600 hover:text-white px-5 py-3 text-sm font-semibold uppercase tracking-wider transition ${availabilityStatus === 'no'
+                        ? 'bg-slate-700 text-white'
+                        : 'bg-white text-slate-600 border border-slate-200'
                         }`}
                     onClick={() => onUpdateAvailability(false)}
                     type="button"

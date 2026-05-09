@@ -67,6 +67,47 @@ const getLocationErrorMessage = (error) => {
   return message || 'A aparut o eroare.'
 }
 
+// Extracted loading placeholder component
+const LoadingPlaceholder = () => (
+  <div className="mx-auto flex max-w-6xl items-center justify-center px-6 py-20">
+    <LoadingCard />
+  </div>
+)
+
+// Extracted RequireAuth component to prevent unnecessary re-renders
+const RequireAuth = ({ authReady, authUser, children }) => {
+  if (!authReady) {
+    return <LoadingPlaceholder />
+  }
+
+  if (!authUser) {
+    return <Navigate to="/login" replace />
+  }
+
+  return children
+}
+
+// Extracted RequireAdmin component to prevent unnecessary re-renders
+const RequireAdmin = ({ authReady, authUser, profile, children }) => {
+  if (!authReady) {
+    return <LoadingPlaceholder />
+  }
+
+  if (!authUser) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!profile) {
+    return <LoadingPlaceholder />
+  }
+
+  if (profile.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return children
+}
+
 function App() {
   const [authReady, setAuthReady] = useState(false)
   const [authUser, setAuthUser] = useState(null)
@@ -432,47 +473,9 @@ function App() {
   const isLoading = Object.values(loading).some(Boolean)
   const isAdmin = profile?.role === 'admin'
 
-  const renderLoading = () => (
-    <div className="mx-auto flex max-w-6xl items-center justify-center px-6 py-20">
-      <LoadingCard />
-    </div>
-  )
-
-  const RequireAuth = ({ children }) => {
-    if (!authReady) {
-      return renderLoading()
-    }
-
-    if (!authUser) {
-      return <Navigate to="/login" replace />
-    }
-
-    return children
-  }
-
-  const RequireAdmin = ({ children }) => {
-    if (!authReady) {
-      return renderLoading()
-    }
-
-    if (!authUser) {
-      return <Navigate to="/login" replace />
-    }
-
-    if (!profile) {
-      return renderLoading()
-    }
-
-    if (profile.role !== 'admin') {
-      return <Navigate to="/dashboard" replace />
-    }
-
-    return children
-  }
-
   const renderAuthPage = () => {
     if (!authReady) {
-      return renderLoading()
+      return <LoadingPlaceholder />
     }
 
     if (authUser) {
@@ -496,7 +499,7 @@ function App() {
 
   const renderHome = () => {
     if (!authReady) {
-      return renderLoading()
+      return <LoadingPlaceholder />
     }
 
     return <Navigate to={authUser ? '/dashboard' : '/locations'} replace />
@@ -523,7 +526,7 @@ function App() {
           <Route
             path="/admin"
             element={
-              <RequireAdmin>
+              <RequireAdmin authReady={authReady} authUser={authUser} profile={profile}>
                 <AdminPage />
               </RequireAdmin>
             }
@@ -531,7 +534,7 @@ function App() {
           <Route
             path="/dashboard"
             element={
-              <RequireAuth>
+              <RequireAuth authReady={authReady} authUser={authUser}>
                 <DashboardPage
                   notice={notice}
                   errorMessage={errorMessage}
@@ -550,7 +553,7 @@ function App() {
           <Route
             path="/profile"
             element={
-              <RequireAuth>
+              <RequireAuth authReady={authReady} authUser={authUser}>
                 <ProfilePage
                   notice={notice}
                   errorMessage={errorMessage}
@@ -572,7 +575,7 @@ function App() {
           <Route
             path="/sessions"
             element={
-              <RequireAuth>
+              <RequireAuth authReady={authReady} authUser={authUser}>
                 <SessionsPage
                   notice={notice}
                   errorMessage={errorMessage}
@@ -597,10 +600,10 @@ function App() {
               </RequireAuth>
             }
           />
-          {/* <Route
+          <Route
             path="/chat"
             element={
-              <RequireAuth>
+              <RequireAuth authReady={authReady} authUser={authUser}>
                 <ChatPage
                   notice={notice}
                   errorMessage={errorMessage}
@@ -616,7 +619,7 @@ function App() {
                 />
               </RequireAuth>
             }
-          /> */}
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
