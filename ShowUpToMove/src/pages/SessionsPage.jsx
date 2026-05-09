@@ -20,6 +20,7 @@ export default function SessionsPage({
   onDeleteSession,
   onBroadcastInvite,
   onOpenSessionChat,
+  onOpenSessionDetails,
   formatSessionTime,
   onJoinSession,
   onLeaveSession,
@@ -74,6 +75,7 @@ export default function SessionsPage({
                 onDeleteSession={onDeleteSession}
                 onBroadcastInvite={onBroadcastInvite}
                 onOpenSessionChat={onOpenSessionChat}
+                onOpenSessionDetails={onOpenSessionDetails}
               />
             </section>
 

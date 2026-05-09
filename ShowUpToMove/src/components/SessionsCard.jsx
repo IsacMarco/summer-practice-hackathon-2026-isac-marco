@@ -18,6 +18,7 @@ export default function SessionsCard({
   onDeleteSession,
   onBroadcastInvite,
   onOpenSessionChat,
+  onOpenSessionDetails,
 }) {
   const [hoveredInfoSessionId, setHoveredInfoSessionId] = useState('')
 
@@ -55,9 +56,19 @@ export default function SessionsCard({
                 onMouseLeave={() => setHoveredInfoSessionId('')}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">
-                    {session.name || session.sport?.name || 'Session'}
-                  </span>
+                  {isJoined ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenSessionDetails(session._id)}
+                      className="font-semibold text-left text-slate-900 underline-offset-2 hover:underline"
+                    >
+                      {session.name || session.sport?.name || 'Session'}
+                    </button>
+                  ) : (
+                    <span className="font-semibold text-slate-900">
+                      {session.name || session.sport?.name || 'Session'}
+                    </span>
+                  )}
                   <span className="text-xs uppercase tracking-wider">
                     {session.participants?.length || 0} players
                   </span>
@@ -126,7 +137,7 @@ export default function SessionsCard({
                     Join session
                   </button>
                 )}
-                {canDelete && (
+                {isJoined && canDelete && (
                   <button
                     type="button"
                     onClick={() => onDeleteSession(session._id)}
@@ -135,7 +146,7 @@ export default function SessionsCard({
                     Delete
                   </button>
                 )}
-                {canBroadcast && (
+                {isJoined && canBroadcast && (
                   <button
                     type="button"
                     onClick={() => onBroadcastInvite(session._id)}
@@ -144,7 +155,7 @@ export default function SessionsCard({
                     Broadcast Invite
                   </button>
                 )}
-                {canOpenChat && (
+                {isJoined && canOpenChat && (
                   <button
                     type="button"
                     onClick={() => onOpenSessionChat(session._id)}

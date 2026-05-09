@@ -19,6 +19,7 @@ import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import PublicLocationsPage from './pages/PublicLocationsPage'
 import SessionsPage from './pages/SessionsPage'
+import SessionDetailsPage from './pages/SessionDetailsPage'
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 const PLAYER_LEVEL_OPTIONS = ['beginner', 'intermediate', 'advanced']
@@ -782,6 +783,11 @@ function App() {
     navigate('/chat')
   }
 
+  const handleOpenSessionDetails = (sessionId) => {
+    if (!sessionId) return
+    navigate(`/sessions/${sessionId}`)
+  }
+
   const handleConfirmMatchJoin = async () => {
     if (!matchSuggestion?._id) return
     await handleJoinSession(matchSuggestion._id)
@@ -956,6 +962,7 @@ function App() {
                   onDeleteSession={handleDeleteSession}
                   onBroadcastInvite={handleBroadcastInvite}
                   onOpenSessionChat={handleOpenSessionChat}
+                  onOpenSessionDetails={handleOpenSessionDetails}
                   selectedSessionId={selectedSessionId}
                   onSelectSession={setSelectedSessionId}
                   formatSessionTime={formatSessionTime}
@@ -978,6 +985,14 @@ function App() {
                   loadingLocation={loading.location}
                   isAdmin={isAdmin}
                 />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/sessions/:sessionId"
+            element={
+              <RequireAuth authReady={authReady} authUser={authUser}>
+                <SessionDetailsPage formatSessionTime={formatSessionTime} />
               </RequireAuth>
             }
           />

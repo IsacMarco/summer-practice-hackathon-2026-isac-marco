@@ -30,9 +30,14 @@ router.get('/', requireAuth, async (req, res) => {
 })
 
 router.get('/:id', requireAuth, async (req, res) => {
-  const session = await Session.findById(req.params.id).populate(
-    'sport participants captain location chat createdBy',
-  )
+  const session = await Session.findById(req.params.id).populate([
+    { path: 'sport' },
+    { path: 'captain', populate: { path: 'sports' } },
+    { path: 'location' },
+    { path: 'chat' },
+    { path: 'createdBy' },
+    { path: 'participants', populate: { path: 'sports' } },
+  ])
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' })
