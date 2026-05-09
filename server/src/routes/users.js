@@ -88,17 +88,55 @@ Bio: ${bio}
       },
     )
 
-  const modelsToTry = [
+  const listModelsResponse = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiApiKey}`,
+  )
+
+  if (!listModelsResponse.ok) {
+    let reason = 'Could not list AI models'
+    try {
+      const payload = await listModelsResponse.json()
+      reason = payload?.error?.message || reason
+    } catch {}
+    return res.status(502).json({ error: reason })
+  }
+
+  const listModelsPayload = await listModelsResponse.json()
+  const availableModelNames = Array.isArray(listModelsPayload?.models)
+    ? listModelsPayload.models
+        .filter(
+          (model) =>
+            Array.isArray(model?.supportedGenerationMethods) &&
+            model.supportedGenerationMethods.includes('generateContent'),
+        )
+        .map((model) => String(model.name || '').replace(/^models\//, ''))
+        .filter(Boolean)
+    : []
+
+  const preferredOrder = [
     'gemma-3-27b-it',
     'gemma-3-12b-it',
     'gemma-3-4b-it',
     'gemma-2-27b-it',
     'gemma-2-9b-it',
     'gemma-2-2b-it',
+    'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
     'gemini-1.5-flash-8b',
   ]
+
+  const modelsToTry = preferredOrder.filter((model) =>
+    availableModelNames.includes(model),
+  )
+
+  if (modelsToTry.length === 0) {
+    return res.status(502).json({
+      error:
+        'No compatible generateContent model is available for this API key.',
+      availableModels: availableModelNames,
+    })
+  }
 
   let response = null
   let lastErrorMessage = ''
@@ -120,11 +158,19 @@ Bio: ${bio}
       error:
         lastErrorMessage ||
         'AI suggestion failed. None of the configured Gemma/Gemini models are available for this API key.',
+      triedModels: modelsToTry,
     })
   }
 
   const payload = await response.json()
   const raw = payload?.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+
+  if (!payload?.candidates?.length) {
+    return res.status(502).json({
+      error: 'AI returned no candidates.',
+      triedModels: modelsToTry,
+    })
+  }
 
   let parsed = {}
   try {
