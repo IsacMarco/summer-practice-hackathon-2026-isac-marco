@@ -2,6 +2,11 @@ import mongoose from 'mongoose'
 
 const sessionSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     desiredPlayerLevels: {
       type: [String],
       enum: ['beginner', 'intermediate', 'advanced'],

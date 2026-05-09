@@ -14,6 +14,8 @@ export default function DashboardPage({
     loadingMatch,
     onMatch,
     sessions,
+    invites,
+    onInviteResponse,
     formatSessionTime,
 }) {
     const displayName = profileForm.displayName || 'Player'
@@ -86,6 +88,35 @@ export default function DashboardPage({
                 </div>
 
                 <div className="space-y-6">
+                    {invites?.length > 0 && (
+                        <section className={`${cardClass} soft-rise soft-rise-delay-1 p-6`}>
+                            <h2 className={cardTitleClass}>Invitations</h2>
+                            <div className="mt-4 space-y-3">
+                                {invites.map((invite) => (
+                                    <div key={invite._id} className="rounded-2xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm">
+                                        <p className="font-semibold text-slate-800">{invite.message}</p>
+                                        <div className="mt-3 flex gap-2">
+                                            <button
+                                                type="button"
+                                                className="rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white"
+                                                onClick={() => onInviteResponse(invite._id, 'accept')}
+                                            >
+                                                Join
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="rounded-full bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                                                onClick={() => onInviteResponse(invite._id, 'refuse')}
+                                            >
+                                                Refuse
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     <section className={`${cardClass} soft-rise soft-rise-delay-2 p-6`}>
                         <h2 className={cardTitleClass}>Up next</h2>
                         <p className="mt-2 text-sm text-slate-600">
@@ -104,7 +135,7 @@ export default function DashboardPage({
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="font-semibold text-slate-800">
-                                                {session.sport?.name || 'Session'}
+                                                {session.name || session.sport?.name || 'Session'}
                                             </span>
                                             <span className="text-xs uppercase tracking-wider text-slate-500">
                                                 {session.participants?.length || 0} players

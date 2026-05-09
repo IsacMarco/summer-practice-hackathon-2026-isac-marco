@@ -45,9 +45,12 @@ export default function ChatPage({
                                             }`}
                                     >
                                         <p className="text-xs font-bold uppercase tracking-wider opacity-80">
-                                            {session.sport?.name || 'Sport'}
+                                            {session.name || session.sport?.name || 'Sport'}
                                         </p>
                                         <p className="font-semibold">{session.location?.name || 'Location TBD'}</p>
+                                        <p className="mt-1 text-xs opacity-80">
+                                            Captain: {session.captain?.displayName || 'Unknown'} | Cost: {session.location?.priceEstimate || 'N/A'}
+                                        </p>
                                         <p className="mt-1 text-xs">{formatSessionTime(session.scheduledAt)}</p>
                                     </button>
                                 ))

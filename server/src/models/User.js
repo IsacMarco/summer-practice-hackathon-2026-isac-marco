@@ -53,6 +53,22 @@ const userSchema = new mongoose.Schema(
       type: availabilitySchema,
       default: () => ({}),
     },
+    invites: [
+      new mongoose.Schema(
+        {
+          session: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', required: true },
+          fromUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+          message: { type: String, default: '' },
+          status: {
+            type: String,
+            enum: ['pending', 'accepted', 'refused'],
+            default: 'pending',
+          },
+          createdAt: { type: Date, default: Date.now },
+        },
+        { _id: true },
+      ),
+    ],
   },
   { timestamps: true },
 )

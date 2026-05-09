@@ -15,10 +15,17 @@ export default function SessionsPage({
   errorMessage,
   sessions,
   mySessionIds,
+  currentUserId,
+  isAdmin,
+  onDeleteSession,
+  onBroadcastInvite,
+  onOpenSessionChat,
   formatSessionTime,
   onJoinSession,
+  onLeaveSession,
   sports,
   locations,
+  filteredLocations,
   manualForm,
   onManualChange,
   onManualLevelToggle,
@@ -40,8 +47,8 @@ export default function SessionsPage({
             Sports Sessions
           </h1>
           <p className="max-w-xl text-[14px] leading-relaxed text-slate-500">
-            Vezi toate sesiunile create, intra in cele potrivite si discuta doar
-            in chat-urile sesiunilor la care participi.
+            Browse all created sessions, join the right ones, and chat only in
+            sessions where you participate.
           </p>
         </header>
 
@@ -52,15 +59,21 @@ export default function SessionsPage({
                 <div>
                   <h2 className={widgetTitleClass}>All Sessions</h2>
                   <p className="mt-0.5 text-[12px] font-medium text-slate-400">
-                    Toate sesiunile create pana acum.
+                    All sessions created so far.
                   </p>
                 </div>
               </div>
               <SessionsCard
                 sessions={sessions}
                 mySessionIds={mySessionIds}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
                 formatSessionTime={formatSessionTime}
                 onJoinSession={onJoinSession}
+                onLeaveSession={onLeaveSession}
+                onDeleteSession={onDeleteSession}
+                onBroadcastInvite={onBroadcastInvite}
+                onOpenSessionChat={onOpenSessionChat}
               />
             </section>
 
@@ -72,7 +85,7 @@ export default function SessionsPage({
               </div>
               <ManualEventCard
                 sports={sports}
-                locations={locations}
+                locations={filteredLocations || locations}
                 manualForm={manualForm}
                 onManualChange={onManualChange}
                 onManualLevelToggle={onManualLevelToggle}

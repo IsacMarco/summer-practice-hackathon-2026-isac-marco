@@ -22,11 +22,13 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     ? [...new Set(sportIds.map((id) => String(id)))]
     : []
 
-  if (selectedSportIds.length > 0) {
-    const sportCount = await Sport.countDocuments({ _id: { $in: selectedSportIds } })
-    if (sportCount !== selectedSportIds.length) {
-      return res.status(400).json({ error: 'One or more sports are invalid' })
-    }
+  if (selectedSportIds.length === 0) {
+    return res.status(400).json({ error: 'At least one sport is required' })
+  }
+
+  const sportCount = await Sport.countDocuments({ _id: { $in: selectedSportIds } })
+  if (sportCount !== selectedSportIds.length) {
+    return res.status(400).json({ error: 'One or more sports are invalid' })
   }
 
   const location = await Location.create({
@@ -41,6 +43,37 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   const hydrated = await Location.findById(location._id).populate('sports')
 
   return res.status(201).json(hydrated)
+})
+
+router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { name, address, priceEstimate, lat, lng, sportIds } = req.body
+  const location = await Location.findById(req.params.id)
+  if (!location) {
+    return res.status(404).json({ error: 'Location not found' })
+  }
+
+  const selectedSportIds = Array.isArray(sportIds)
+    ? [...new Set(sportIds.map((id) => String(id)))]
+    : []
+  if (selectedSportIds.length === 0) {
+    return res.status(400).json({ error: 'At least one sport is required' })
+  }
+
+  const sportCount = await Sport.countDocuments({ _id: { $in: selectedSportIds } })
+  if (sportCount !== selectedSportIds.length) {
+    return res.status(400).json({ error: 'One or more sports are invalid' })
+  }
+
+  if (name !== undefined) location.name = name
+  if (address !== undefined) location.address = address
+  if (priceEstimate !== undefined) location.priceEstimate = priceEstimate
+  if (lat !== undefined) location.lat = lat
+  if (lng !== undefined) location.lng = lng
+  location.sports = selectedSportIds
+  await location.save()
+
+  const hydrated = await Location.findById(location._id).populate('sports')
+  return res.json(hydrated)
 })
 
 router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {

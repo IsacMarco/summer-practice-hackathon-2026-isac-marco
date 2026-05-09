@@ -12,6 +12,7 @@ export default function ProfilePage({
     onPhotoChange,
     onPhotoClear,
     onSaveProfile,
+    onAutoDetectProfile,
     availabilityStatus,
     todayLabel,
     onUpdateAvailability,
@@ -65,12 +66,12 @@ export default function ProfilePage({
 
                         <section className={`${cardClass} p-6`}>
                             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                                Daily Check-in • {todayLabel}
+                                Daily Check-in - {todayLabel}
                             </h3>
                             <div className="mt-4 flex flex-col gap-2">
                                 <button
                                     onClick={() => onUpdateAvailability(true)}
-                                    className={`rounded-2xl py-3 text-sm font-bold transition-all ${availabilityStatus === 'available'
+                                    className={`rounded-2xl py-3 text-sm font-bold transition-all ${availabilityStatus === 'yes'
                                             ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
                                             : 'bg-white text-slate-600 border border-slate-100 hover:border-emerald-200'
                                         }`}
@@ -79,7 +80,7 @@ export default function ProfilePage({
                                 </button>
                                 <button
                                     onClick={() => onUpdateAvailability(false)}
-                                    className={`rounded-2xl py-3 text-sm font-bold transition-all ${availabilityStatus === 'unavailable'
+                                    className={`rounded-2xl py-3 text-sm font-bold transition-all ${availabilityStatus === 'no'
                                             ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
                                             : 'bg-white text-slate-600 border border-slate-100 hover:border-orange-200'
                                         }`}
@@ -125,6 +126,13 @@ export default function ProfilePage({
                                         value={profileForm.bio}
                                         onChange={(e) => onProfileChange('bio', e.target.value)}
                                     />
+                                    <button
+                                        onClick={onAutoDetectProfile}
+                                        type="button"
+                                        className="mt-3 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                                    >
+                                        Auto detect level and sports with AI
+                                    </button>
                                 </div>
 
                                 {/* Skill Level - Custom styled Select */}

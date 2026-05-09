@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -22,6 +22,13 @@ import SessionsPage from './pages/SessionsPage'
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 const PLAYER_LEVEL_OPTIONS = ['beginner', 'intermediate', 'advanced']
+const normalizeSkillLevel = (value = '') => {
+  const skill = String(value).toLowerCase()
+  if (skill.startsWith('begin')) return 'beginner'
+  if (skill.startsWith('inter')) return 'intermediate'
+  if (skill.startsWith('adv')) return 'advanced'
+  return ''
+}
 
 const formatSessionTime = (value) => {
   if (!value) {
@@ -37,35 +44,33 @@ const formatSessionTime = (value) => {
 const getAuthErrorMessage = (error) => {
   const code = error?.code || ''
   if (code === 'auth/configuration-not-found') {
-    return (
-      'Firebase auth nu este configurat. Verifica setarile din Firebase Console si .env.'
-    )
+    return 'Firebase auth is not configured. Check Firebase Console settings and .env.'
   }
   if (code === 'auth/invalid-api-key') {
-    return 'API key-ul Firebase este invalid.'
+    return 'The Firebase API key is invalid.'
   }
   if (code === 'auth/invalid-credential') {
-    return 'Email sau parola incorecta.'
+    return 'Invalid email or password.'
   }
   if (code === 'auth/email-already-in-use') {
-    return 'Acest email este deja folosit.'
+    return 'This email is already in use.'
   }
   if (code === 'auth/weak-password') {
-    return 'Parola este prea slaba (minim 6 caractere).'
+    return 'Password is too weak (minimum 6 characters).'
   }
 
-  return error?.message || 'Autentificarea a esuat.'
+  return error?.message || 'Authentication failed.'
 }
 
 const getLocationErrorMessage = (error) => {
   const message = String(error?.message || '')
   if (/admin only/i.test(message)) {
-    return 'Doar adminul poate adauga locatii.'
+    return 'Only admins can add locations.'
   }
   if (/failed to fetch|networkerror/i.test(message)) {
-    return 'Serverul nu raspunde. Verifica daca API-ul ruleaza.'
+    return 'Server is not responding. Check if the API is running.'
   }
-  return message || 'A aparut o eroare.'
+  return message || 'An error occurred.'
 }
 
 // Extracted loading placeholder component
@@ -110,6 +115,8 @@ const RequireAdmin = ({ authReady, authUser, profile, children }) => {
 }
 
 function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [authReady, setAuthReady] = useState(false)
   const [authUser, setAuthUser] = useState(null)
   const [authMode, setAuthMode] = useState('login')
@@ -137,6 +144,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState([])
   const [chatDraft, setChatDraft] = useState('')
   const [manualForm, setManualForm] = useState({
+    name: '',
     sportId: '',
     scheduledAt: '',
     locationId: '',
@@ -151,6 +159,8 @@ function App() {
   })
   const [notice, setNotice] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [matchSuggestion, setMatchSuggestion] = useState(null)
+  const [invites, setInvites] = useState([])
   const [loading, setLoading] = useState({
     dashboard: false,
     profile: false,
@@ -173,6 +183,21 @@ function App() {
     () => new Set((mySessions || []).map((session) => session._id)),
     [mySessions],
   )
+  const upcomingChatSessions = useMemo(
+    () =>
+      (mySessions || []).filter(
+        (session) => session?.scheduledAt && new Date(session.scheduledAt) >= new Date(),
+      ),
+    [mySessions],
+  )
+  const filteredLocations = useMemo(() => {
+    if (!manualForm.sportId) return locations
+    return (locations || []).filter((locationItem) => {
+      const supported = locationItem?.sports || []
+      if (supported.length === 0) return true
+      return supported.some((sport) => (sport?._id || sport) === manualForm.sportId)
+    })
+  }, [locations, manualForm.sportId])
 
   const syncUser = async (user) => {
     await apiFetch('/api/auth/sync', {
@@ -189,13 +214,21 @@ function App() {
     setErrorMessage('')
 
     try {
-      const [profileData, sportsData, sessionsData, mySessionsData, locationsData] =
+      const [
+        profileData,
+        sportsData,
+        sessionsData,
+        mySessionsData,
+        locationsData,
+        invitesData,
+      ] =
         await Promise.all([
           apiFetch('/api/users/me'),
           apiFetch('/api/sports'),
           apiFetch('/api/sessions'),
           apiFetch('/api/sessions?me=1'),
           apiFetch('/api/locations'),
+          apiFetch('/api/users/me/invites'),
         ])
 
       setProfile(profileData)
@@ -203,6 +236,7 @@ function App() {
       setSessions(sessionsData)
       setMySessions(mySessionsData)
       setLocations(locationsData)
+      setInvites(invitesData || [])
     } catch (error) {
       setErrorMessage(error.message)
     } finally {
@@ -233,11 +267,29 @@ function App() {
         setLocations([])
         setSelectedSessionId('')
         setChatMessages([])
+        setInvites([])
       }
     })
 
     return () => unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!authUser) {
+      return
+    }
+    loadDashboard()
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!authUser) {
+      return
+    }
+    const intervalId = setInterval(() => {
+      loadDashboard()
+    }, 15000)
+    return () => clearInterval(intervalId)
+  }, [authUser])
 
   useEffect(() => {
     if (!profile) {
@@ -252,6 +304,14 @@ function App() {
       photoBase64: profile.photoBase64 || '',
     })
   }, [profile])
+
+  useEffect(() => {
+    if (!manualForm.locationId) return
+    const stillValid = filteredLocations.some((loc) => loc._id === manualForm.locationId)
+    if (!stillValid) {
+      setManualForm((prev) => ({ ...prev, locationId: '' }))
+    }
+  }, [manualForm.locationId, filteredLocations])
 
   useEffect(() => {
     if (selectedSessionId && !joinedSessionIds.has(selectedSessionId)) {
@@ -312,6 +372,35 @@ function App() {
   }
 
   const handleSignOut = async () => {
+    setProfile(null)
+    setSessions([])
+    setMySessions([])
+    setSports([])
+    setLocations([])
+    setSelectedSessionId('')
+    setChatMessages([])
+    setChatDraft('')
+    setNotice('')
+    setErrorMessage('')
+    setMatchSuggestion(null)
+    setManualForm({
+      name: '',
+      sportId: '',
+      scheduledAt: '',
+      locationId: '',
+      desiredPlayerLevels: [],
+      autoJoin: true,
+    })
+    setProfileForm({
+      displayName: '',
+      bio: '',
+      skillLevel: '',
+      sports: [],
+      photoBase64: '',
+    })
+    setAuthForm({ email: '', password: '', displayName: '' })
+    localStorage.clear()
+    sessionStorage.clear()
     await signOut(auth)
   }
 
@@ -342,8 +431,7 @@ function App() {
 
       return {
         ...prev,
-        desiredPlayerLevels:
-          current.size > 0 ? [...current] : [...PLAYER_LEVEL_OPTIONS],
+        desiredPlayerLevels: [...current],
       }
     })
   }
@@ -428,9 +516,16 @@ function App() {
     setErrorMessage('')
 
     try {
-      const data = await apiFetch('/api/match', { method: 'POST' })
-      setSessions(data.sessions || [])
-      setNotice(`Matched into ${data.createdSessionIds?.length || 0} sessions.`)
+      await apiFetch('/api/match', { method: 'POST' })
+      await loadDashboard()
+      const suggestion = await apiFetch('/api/match/suggest')
+      const suggestedSession = suggestion?.session
+
+      if (!suggestedSession) {
+        setNotice('No available upcoming session found right now.')
+        return
+      }
+      setMatchSuggestion(suggestedSession)
     } catch (error) {
       setErrorMessage(error.message)
     } finally {
@@ -446,10 +541,11 @@ function App() {
 
     try {
       const payload = {
+        name: manualForm.name || '',
         sportId: manualForm.sportId,
         scheduledAt: manualForm.scheduledAt || undefined,
         locationId: manualForm.locationId || undefined,
-        desiredPlayerLevels: manualForm.desiredPlayerLevels,
+        desiredPlayerLevels: manualForm.desiredPlayerLevels || [],
       }
       const created = await apiFetch('/api/sessions', {
         method: 'POST',
@@ -458,10 +554,11 @@ function App() {
       setSessions((prev) => [created, ...prev])
       setMySessions((prev) => [created, ...prev])
       setManualForm({
+        name: '',
         sportId: '',
         scheduledAt: '',
         locationId: '',
-        desiredPlayerLevels: [...PLAYER_LEVEL_OPTIONS],
+        desiredPlayerLevels: [],
         autoJoin: true,
       })
       setNotice('Manual session created!')
@@ -494,11 +591,132 @@ function App() {
       })
       setSelectedSessionId(joined._id)
       setNotice('You joined the session.')
+      await loadDashboard()
     } catch (error) {
       setErrorMessage(error.message)
     } finally {
       setLoading((prev) => ({ ...prev, session: false }))
     }
+  }
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!sessionId) {
+      return
+    }
+
+    setLoading((prev) => ({ ...prev, session: true }))
+    setErrorMessage('')
+
+    try {
+      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+      setSessions((prev) => prev.filter((session) => session._id !== sessionId))
+      setMySessions((prev) => prev.filter((session) => session._id !== sessionId))
+      if (selectedSessionId === sessionId) {
+        setSelectedSessionId('')
+        setChatMessages([])
+      }
+      setNotice('Session deleted.')
+      await loadDashboard()
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading((prev) => ({ ...prev, session: false }))
+    }
+  }
+
+  const handleBroadcastInvite = async (sessionId) => {
+    if (!sessionId) return
+    setLoading((prev) => ({ ...prev, session: true }))
+    setErrorMessage('')
+    try {
+      const data = await apiFetch(`/api/sessions/${sessionId}/broadcast-invite`, {
+        method: 'POST',
+      })
+      setNotice(`Broadcast sent to ${data.invitedCount || 0} users.`)
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading((prev) => ({ ...prev, session: false }))
+    }
+  }
+
+  const handleInviteResponse = async (inviteId, action) => {
+    setLoading((prev) => ({ ...prev, session: true }))
+    setErrorMessage('')
+    try {
+      await apiFetch(`/api/users/me/invites/${inviteId}/respond`, {
+        method: 'POST',
+        body: { action },
+      })
+      setInvites((prev) => prev.filter((invite) => invite._id !== inviteId))
+      if (action === 'accept') {
+        setNotice('Invite accepted.')
+      } else {
+        setNotice('Invite refused.')
+      }
+      await loadDashboard()
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading((prev) => ({ ...prev, session: false }))
+    }
+  }
+
+  const handleAutoDetectProfile = async () => {
+    setLoading((prev) => ({ ...prev, profile: true }))
+    setErrorMessage('')
+
+    try {
+      const data = await apiFetch('/api/users/me/ai-suggestions', {
+        method: 'POST',
+        body: { bio: profileForm.bio },
+      })
+
+      setProfileForm((prev) => ({
+        ...prev,
+        skillLevel: data.skillLevel || prev.skillLevel,
+        sports: data.sports?.length ? data.sports : prev.sports,
+      }))
+      setNotice('AI suggestions applied from profile description.')
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading((prev) => ({ ...prev, profile: false }))
+    }
+  }
+
+  const handleLeaveSession = async (sessionId) => {
+    if (!sessionId) {
+      return
+    }
+    setLoading((prev) => ({ ...prev, session: true }))
+    setErrorMessage('')
+
+    try {
+      await apiFetch(`/api/sessions/${sessionId}/leave`, { method: 'POST' })
+      if (selectedSessionId === sessionId) {
+        setSelectedSessionId('')
+        setChatMessages([])
+      }
+      setNotice('You left the session.')
+      await loadDashboard()
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading((prev) => ({ ...prev, session: false }))
+    }
+  }
+
+  const handleOpenSessionChat = (sessionId) => {
+    if (!sessionId) return
+    setSelectedSessionId(sessionId)
+    navigate('/chat')
+  }
+
+  const handleConfirmMatchJoin = async () => {
+    if (!matchSuggestion?._id) return
+    await handleJoinSession(matchSuggestion._id)
+    setMatchSuggestion(null)
   }
 
   const handleSendMessage = async () => {
@@ -622,6 +840,8 @@ function App() {
                   loadingMatch={loading.match}
                   onMatch={handleMatch}
                   sessions={sessions}
+                  invites={invites}
+                  onInviteResponse={handleInviteResponse}
                   formatSessionTime={formatSessionTime}
                 />
               </RequireAuth>
@@ -642,6 +862,7 @@ function App() {
                   onPhotoChange={handlePhotoChange}
                   onPhotoClear={handlePhotoClear}
                   onSaveProfile={handleProfileSave}
+                  onAutoDetectProfile={handleAutoDetectProfile}
                   availabilityStatus={availabilityStatus}
                   todayLabel={todayLabel}
                   onUpdateAvailability={updateAvailability}
@@ -659,7 +880,12 @@ function App() {
                   sessions={sessions}
                   mySessionIds={joinedSessionIds}
                   currentUserId={profile?._id}
+                  isAdmin={isAdmin}
                   onJoinSession={handleJoinSession}
+                  onLeaveSession={handleLeaveSession}
+                  onDeleteSession={handleDeleteSession}
+                  onBroadcastInvite={handleBroadcastInvite}
+                  onOpenSessionChat={handleOpenSessionChat}
                   selectedSessionId={selectedSessionId}
                   onSelectSession={setSelectedSessionId}
                   formatSessionTime={formatSessionTime}
@@ -670,6 +896,7 @@ function App() {
                   onUpdateAvailability={updateAvailability}
                   sports={sports}
                   locations={locations}
+                  filteredLocations={filteredLocations}
                   manualForm={manualForm}
                   onManualChange={handleManualChange}
                   onManualLevelToggle={handleManualLevelToggle}
@@ -691,7 +918,7 @@ function App() {
                 <ChatPage
                   notice={notice}
                   errorMessage={errorMessage}
-                  sessions={mySessions}
+                  sessions={upcomingChatSessions}
                   selectedSessionId={selectedSessionId}
                   onSelectSession={setSelectedSessionId}
                   formatSessionTime={formatSessionTime}
@@ -711,6 +938,40 @@ function App() {
       {isLoading && (
         <div className="pointer-events-none fixed bottom-6 right-6 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white shadow-lg">
           Working...
+        </div>
+      )}
+
+      {matchSuggestion && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900">Join Suggested Session?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {matchSuggestion.name || matchSuggestion.sport?.name} at{' '}
+              {matchSuggestion.location?.name || 'Location TBD'}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Players:{' '}
+              {(matchSuggestion.participants || [])
+                .map((p) => p.displayName || p.email)
+                .join(', ') || 'No players yet'}
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                onClick={handleConfirmMatchJoin}
+              >
+                Join Now
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700"
+                onClick={() => setMatchSuggestion(null)}
+              >
+                Not Now
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

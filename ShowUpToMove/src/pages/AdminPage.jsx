@@ -6,17 +6,18 @@ import { cardClass, cardTitleClass } from '../components/ui'
 const getAdminErrorMessage = (error) => {
     const message = String(error?.message || '')
     if (/admin only/i.test(message)) {
-        return 'Nu ai drepturi de admin pentru aceasta actiune.'
+        return 'You do not have admin rights for this action.'
     }
     if (/failed to fetch|networkerror/i.test(message)) {
-        return 'Serverul nu raspunde. Verifica daca API-ul ruleaza.'
+        return 'Server is not responding. Check if the API is running.'
     }
-    return message || 'A aparut o eroare.'
+    return message || 'An error occurred.'
 }
 
 export default function AdminPage() {
     const [users, setUsers] = useState([])
     const [locations, setLocations] = useState([])
+    const [sessions, setSessions] = useState([])
     const [sports, setSports] = useState([])
     const [locationForm, setLocationForm] = useState({
         name: '',
@@ -24,11 +25,13 @@ export default function AdminPage() {
         priceEstimate: '',
         sportIds: [],
     })
+    const [editingLocationId, setEditingLocationId] = useState('')
     const [loading, setLoading] = useState({
         users: false,
         locations: false,
         create: false,
         remove: '',
+        removeSession: '',
     })
     const [notice, setNotice] = useState('')
     const [errorMessage, setErrorMessage] = useState('')
@@ -70,10 +73,20 @@ export default function AdminPage() {
         }
     }
 
+    const loadSessions = async () => {
+        try {
+            const data = await apiFetch('/api/sessions')
+            setSessions(data)
+        } catch (error) {
+            setErrorMessage(getAdminErrorMessage(error))
+        }
+    }
+
     useEffect(() => {
         loadUsers()
         loadLocations()
         loadSports()
+        loadSessions()
     }, [])
 
     const handleLocationChange = (field) => (event) => {
@@ -98,14 +111,29 @@ export default function AdminPage() {
         setNotice('')
         setErrorMessage('')
 
+        if ((locationForm.sportIds || []).length === 0) {
+            setErrorMessage('Select at least one sport before saving location.')
+            setLoading((prev) => ({ ...prev, create: false }))
+            return
+        }
+
         try {
-            const created = await apiFetch('/api/locations', {
-                method: 'POST',
+            const endpoint = editingLocationId
+                ? `/api/locations/${editingLocationId}`
+                : '/api/locations'
+            const method = editingLocationId ? 'PUT' : 'POST'
+            const created = await apiFetch(endpoint, {
+                method,
                 body: locationForm,
             })
-            setLocations((prev) => [created, ...prev])
+            setLocations((prev) =>
+                editingLocationId
+                    ? prev.map((loc) => (loc._id === editingLocationId ? created : loc))
+                    : [created, ...prev],
+            )
             setLocationForm({ name: '', address: '', priceEstimate: '', sportIds: [] })
-            setNotice('Locatia a fost adaugata.')
+            setEditingLocationId('')
+            setNotice(editingLocationId ? 'Location updated.' : 'Location added.')
         } catch (error) {
             setErrorMessage(getAdminErrorMessage(error))
         } finally {
@@ -121,11 +149,37 @@ export default function AdminPage() {
         try {
             await apiFetch(`/api/locations/${locationId}`, { method: 'DELETE' })
             setLocations((prev) => prev.filter((item) => item._id !== locationId))
-            setNotice('Locatia a fost stearsa.')
+            setNotice('Location deleted.')
         } catch (error) {
             setErrorMessage(getAdminErrorMessage(error))
         } finally {
             setLoading((prev) => ({ ...prev, remove: '' }))
+        }
+    }
+
+    const handleEditLocation = (location) => {
+        setEditingLocationId(location._id)
+        setLocationForm({
+            name: location.name || '',
+            address: location.address || '',
+            priceEstimate: location.priceEstimate || '',
+            sportIds: (location.sports || []).map((sport) => sport._id || sport),
+        })
+    }
+
+    const handleDeleteSession = async (sessionId) => {
+        setLoading((prev) => ({ ...prev, removeSession: sessionId }))
+        setNotice('')
+        setErrorMessage('')
+
+        try {
+            await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+            setSessions((prev) => prev.filter((item) => item._id !== sessionId))
+            setNotice('Session deleted.')
+        } catch (error) {
+            setErrorMessage(getAdminErrorMessage(error))
+        } finally {
+            setLoading((prev) => ({ ...prev, removeSession: '' }))
         }
     }
 
@@ -135,7 +189,7 @@ export default function AdminPage() {
                 <section className={`${cardClass} p-6`}>
                     <h2 className={cardTitleClass}>Admin panel</h2>
                     <p className="mt-3 text-sm text-slate-600">
-                        Administreaza userii si locatiile dintr-un singur loc.
+                        Manage users, sessions, and locations from one place.
                     </p>
                     {(notice || errorMessage) && (
                         <div
@@ -161,7 +215,7 @@ export default function AdminPage() {
                     ) : (
                         <div className="mt-4 space-y-3 text-sm">
                             {users.length === 0 && (
-                                <p className="text-slate-500">Nu exista useri inca.</p>
+                                <p className="text-slate-500">No users yet.</p>
                             )}
                             {users.map((user) => (
                                 <div
@@ -177,6 +231,40 @@ export default function AdminPage() {
                             ))}
                         </div>
                     )}
+                </section>
+
+                <section className={`${cardClass} p-6`}>
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-slate-900">Sessions</h3>
+                        <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white">
+                            {sessions.length}
+                        </span>
+                    </div>
+                    <div className="mt-4 space-y-3 text-sm">
+                        {sessions.map((session) => (
+                            <div
+                                key={session._id}
+                                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/80 px-4 py-3"
+                            >
+                                <div>
+                                    <p className="font-semibold text-slate-800">
+                                        {session.name || session.sport?.name || 'Session'}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        Captain: {session.captain?.displayName || 'Unknown'}
+                                    </p>
+                                </div>
+                                <button
+                                    className="rounded-full border border-rose-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-rose-600 transition hover:border-rose-300 hover:text-rose-700"
+                                    type="button"
+                                    onClick={() => handleDeleteSession(session._id)}
+                                    disabled={loading.removeSession === session._id}
+                                >
+                                    {loading.removeSession === session._id ? 'Deleting...' : 'Delete'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </section>
             </div>
 
@@ -229,8 +317,20 @@ export default function AdminPage() {
                             type="submit"
                             disabled={loading.create}
                         >
-                            {loading.create ? 'Adding...' : 'Add location'}
+                            {loading.create ? 'Saving...' : editingLocationId ? 'Save location' : 'Add location'}
                         </button>
+                        {editingLocationId && (
+                            <button
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600"
+                                type="button"
+                                onClick={() => {
+                                    setEditingLocationId('')
+                                    setLocationForm({ name: '', address: '', priceEstimate: '', sportIds: [] })
+                                }}
+                            >
+                                Cancel edit
+                            </button>
+                        )}
                     </form>
 
                     <div className="mt-6 space-y-3 text-sm">
@@ -238,7 +338,7 @@ export default function AdminPage() {
                             <p className="text-slate-500">Loading locations...</p>
                         )}
                         {!loading.locations && locations.length === 0 && (
-                            <p className="text-slate-500">Nu exista locatii inca.</p>
+                            <p className="text-slate-500">No locations yet.</p>
                         )}
                         {locations.map((location) => (
                             <div
@@ -252,10 +352,17 @@ export default function AdminPage() {
                                     </p>
                                     {location.sports?.length > 0 && (
                                         <p className="mt-1 text-xs text-slate-500">
-                                            Sporturi: {location.sports.map((sport) => sport.name).join(', ')}
+                                            Sports: {location.sports.map((sport) => sport.name).join(', ')}
                                         </p>
                                     )}
                                 </div>
+                                <button
+                                    className="rounded-full border border-indigo-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-indigo-600 transition hover:border-indigo-300 hover:text-indigo-700"
+                                    type="button"
+                                    onClick={() => handleEditLocation(location)}
+                                >
+                                    Edit
+                                </button>
                                 <button
                                     className="rounded-full border border-rose-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-rose-600 transition hover:border-rose-300 hover:text-rose-700"
                                     type="button"

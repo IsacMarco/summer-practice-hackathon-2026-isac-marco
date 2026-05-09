@@ -28,8 +28,8 @@ export default function PublicLocationsPage({ authUser }) {
                     const isNetworkError = /failed to fetch|networkerror/i.test(message)
                     setErrorMessage(
                         isNetworkError
-                            ? 'Nu putem incarca locatiile acum. Verifica daca serverul merge.'
-                            : 'A aparut o eroare la incarcarea locatiilor. Incearca din nou.',
+                            ? 'Cannot load locations right now. Check if the server is running.'
+                            : 'An error occurred while loading locations. Please try again.',
                     )
                 }
             } finally {

@@ -23,7 +23,7 @@ export default function LocationsCard({
             <div className="mt-4 space-y-3">
                 {locations.length === 0 && !loading && (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 px-4 py-6 text-center text-sm text-slate-500">
-                        Nu sunt locatii inca.
+                        No locations yet.
                     </div>
                 )}
                 {locations.map((location) => (

@@ -18,6 +18,14 @@ const shuffle = (items) => {
   return list
 }
 
+const normalizeSkillLevel = (level = '') => {
+  const value = String(level).trim().toLowerCase()
+  if (value.startsWith('begin')) return 'beginner'
+  if (value.startsWith('inter')) return 'intermediate'
+  if (value.startsWith('adv')) return 'advanced'
+  return ''
+}
+
 router.post('/', requireAuth, async (req, res) => {
   const currentUser = await User.findOne({ firebaseUid: req.user.uid })
   if (!currentUser) {
@@ -28,7 +36,7 @@ router.post('/', requireAuth, async (req, res) => {
   const availableUsers = await User.find({
     'availability.status': 'yes',
     'availability.date': todayKey,
-  }).populate('sports')
+  })
 
   const sports = await Sport.find()
 
@@ -37,15 +45,25 @@ router.post('/', requireAuth, async (req, res) => {
 
   for (const sport of sports) {
     const candidates = shuffle(
-      availableUsers.filter(
-        (user) =>
-          user.sports.some((userSport) => userSport._id.equals(sport._id)) &&
-          !assigned.has(user._id.toString()),
-      ),
+      availableUsers.filter((user) => {
+        const playsSport = (user.sports || []).some(
+          (sportId) => sportId.toString() === sport._id.toString(),
+        )
+        return playsSport && !assigned.has(user._id.toString())
+      }),
     )
 
     while (candidates.length >= sport.minPlayers) {
-      const group = candidates.splice(0, sport.maxPlayers)
+      const seedLevel = normalizeSkillLevel(candidates[0]?.skillLevel)
+      const compatible = candidates.filter((u) => {
+        const level = normalizeSkillLevel(u.skillLevel)
+        return !seedLevel || !level || level === seedLevel
+      })
+      const group = compatible.slice(0, sport.maxPlayers)
+      group.forEach((member) => {
+        const idx = candidates.findIndex((c) => c._id.toString() === member._id.toString())
+        if (idx >= 0) candidates.splice(idx, 1)
+      })
       if (group.length < sport.minPlayers) {
         break
       }
@@ -55,6 +73,7 @@ router.post('/', requireAuth, async (req, res) => {
 
       const session = await Session.create({
         sport: sport._id,
+        desiredPlayerLevels: seedLevel ? [seedLevel] : [],
         participants: group.map((member) => member._id),
         captain: captain._id,
         scheduledAt: getDefaultSessionTime(),
@@ -74,6 +93,36 @@ router.post('/', requireAuth, async (req, res) => {
     .sort({ scheduledAt: 1 })
 
   return res.json({ createdSessionIds, sessions })
+})
+
+router.get('/suggest', requireAuth, async (req, res) => {
+  const currentUser = await User.findOne({ firebaseUid: req.user.uid })
+  if (!currentUser) {
+    return res.status(404).json({ error: 'User not found' })
+  }
+
+  const userLevel = normalizeSkillLevel(currentUser.skillLevel)
+
+  const sessions = await Session.find({
+    scheduledAt: { $gte: new Date() },
+    participants: { $ne: currentUser._id },
+  }).populate('sport participants captain location chat createdBy')
+
+  const available = sessions.filter(
+    (session) =>
+      (session.participants?.length || 0) < (session.sport?.maxPlayers || 0) &&
+      (!userLevel ||
+        !Array.isArray(session.desiredPlayerLevels) ||
+        session.desiredPlayerLevels.length === 0 ||
+        session.desiredPlayerLevels.includes(userLevel)),
+  )
+
+  if (available.length === 0) {
+    return res.json({ session: null })
+  }
+
+  const picked = available[Math.floor(Math.random() * available.length)]
+  return res.json({ session: picked })
 })
 
 export default router

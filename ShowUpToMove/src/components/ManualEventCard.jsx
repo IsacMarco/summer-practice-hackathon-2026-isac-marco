@@ -1,7 +1,7 @@
 const levelOptions = [
-  { value: 'beginner', label: 'Incepator' },
-  { value: 'intermediate', label: 'Mediu' },
-  { value: 'advanced', label: 'Avansat' },
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
 ]
 
 export default function ManualEventCard({
@@ -25,6 +25,18 @@ export default function ManualEventCard({
   return (
     <section className="flex flex-col gap-6">
       <form onSubmit={onCreateSession} className="flex flex-col gap-4">
+        <div>
+          <label className={labelClass}>Session name</label>
+          <input
+            className={inputClass}
+            type="text"
+            value={manualForm?.name || ''}
+            onChange={handleChange('name')}
+            placeholder="Ex: Saturday Football Arena"
+            required
+          />
+        </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Sport</label>
@@ -72,12 +84,15 @@ export default function ManualEventCard({
             type="datetime-local"
             value={manualForm?.scheduledAt || ''}
             onChange={handleChange('scheduledAt')}
+            min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+              .toISOString()
+              .slice(0, 16)}
             required
           />
         </div>
 
         <div>
-          <label className={labelClass}>Tip jucatori cautati</label>
+          <label className={labelClass}>Preferred player levels (optional)</label>
           <div className="flex flex-wrap gap-2">
             {levelOptions.map((option) => {
               const active = (manualForm?.desiredPlayerLevels || []).includes(option.value)
