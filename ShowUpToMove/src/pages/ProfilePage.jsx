@@ -170,7 +170,11 @@ export default function ProfilePage({
                                             return (
                                                 <button
                                                     key={sport._id}
-                                                    onClick={() => onToggleSport(sport._id)}
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault()
+                                                        onToggleSport(sport._id)
+                                                    }}
                                                     className={`rounded-2xl px-5 py-2.5 text-xs font-bold transition-all ${isSelected
                                                             ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-500'
                                                             : 'bg-slate-50 text-slate-500 ring-1 ring-slate-100 hover:bg-white hover:ring-slate-300'

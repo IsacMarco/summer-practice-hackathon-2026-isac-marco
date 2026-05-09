@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { cardClass, cardTitleClass } from './ui'
 
 const levelLabels = {
@@ -18,6 +19,8 @@ export default function SessionsCard({
   onBroadcastInvite,
   onOpenSessionChat,
 }) {
+  const [hoveredInfoSessionId, setHoveredInfoSessionId] = useState('')
+
   return (
     <section className={`${cardClass} p-6`}>
       <div className="flex items-center justify-between">
@@ -37,6 +40,7 @@ export default function SessionsCard({
           const isCreator = session.createdBy?._id === currentUserId
           const canDelete = isCreator || isAdmin
           const canBroadcast = isCreator
+          const canOpenChat = isJoined || isCreator
           const levels = (session.desiredPlayerLevels || [])
             .map((level) => levelLabels[level] || level)
             .join(', ')
@@ -44,26 +48,32 @@ export default function SessionsCard({
           return (
             <div
               key={session._id}
-              className="group relative w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-indigo-300 hover:shadow-md"
+              className="relative w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-indigo-300 hover:shadow-md"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">
-                  {session.name || session.sport?.name || 'Session'}
-                </span>
-                <span className="text-xs uppercase tracking-wider">
-                  {session.participants?.length || 0} players
-                </span>
+              <div
+                onMouseEnter={() => setHoveredInfoSessionId(session._id)}
+                onMouseLeave={() => setHoveredInfoSessionId('')}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">
+                    {session.name || session.sport?.name || 'Session'}
+                  </span>
+                  <span className="text-xs uppercase tracking-wider">
+                    {session.participants?.length || 0} players
+                  </span>
+                </div>
+                <p className="mt-2 text-xs opacity-80">
+                  {session.location?.name || 'Location TBD'} |{' '}
+                  {formatSessionTime(session.scheduledAt)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Captain: {session.captain?.displayName || 'Unknown'} | Cost:{' '}
+                  {session.location?.priceEstimate || 'N/A'}
+                </p>
+                {levels && <p className="mt-2 text-xs text-slate-500">Looking for: {levels}</p>}
               </div>
-              <p className="mt-2 text-xs opacity-80">
-                {session.location?.name || 'Location TBD'} |{' '}
-                {formatSessionTime(session.scheduledAt)}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Captain: {session.captain?.displayName || 'Unknown'} | Cost:{' '}
-                {session.location?.priceEstimate || 'N/A'}
-              </p>
-              {levels && <p className="mt-2 text-xs text-slate-500">Looking for: {levels}</p>}
-              <div className="pointer-events-none absolute -top-2 right-2 z-10 hidden w-80 rounded-2xl border border-indigo-100 bg-white p-4 shadow-xl group-hover:block">
+              {hoveredInfoSessionId === session._id && (
+                <div className="pointer-events-none absolute -top-2 right-2 z-10 w-80 rounded-2xl border border-indigo-100 bg-white p-4 shadow-xl">
                 <p className="text-sm font-semibold text-slate-900">
                   {session.name || session.sport?.name || 'Session'}
                 </p>
@@ -88,8 +98,12 @@ export default function SessionsCard({
                     .map((player) => player.displayName || player.email || 'Player')
                     .join(', ') || 'No players yet'}
                 </p>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
+                </div>
+              )}
+              <div
+                className="mt-3 flex items-center gap-2"
+                onMouseEnter={() => setHoveredInfoSessionId('')}
+              >
                 {isJoined ? (
                   <>
                     <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
@@ -130,13 +144,15 @@ export default function SessionsCard({
                     Broadcast Invite
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => onOpenSessionChat(session._id)}
-                  className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-700"
-                >
-                  Open Chat
-                </button>
+                {canOpenChat && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSessionChat(session._id)}
+                    className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-700"
+                  >
+                    Open Chat
+                  </button>
+                )}
               </div>
             </div>
           )

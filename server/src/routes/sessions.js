@@ -235,7 +235,8 @@ router.post('/:id/broadcast-invite', requireAuth, async (req, res) => {
   const targetLevels = Array.isArray(session.desiredPlayerLevels)
     ? session.desiredPlayerLevels
     : []
-  const currentParticipants = session.participants.map((id) => id.toString())
+  const currentParticipants = session.participants
+    .map((participant) => (participant?._id ? participant._id.toString() : participant.toString()))
   const invitedUsers = await User.find({
     _id: { $nin: currentParticipants },
     sports: session.sport._id,

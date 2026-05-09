@@ -161,6 +161,8 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [matchSuggestion, setMatchSuggestion] = useState(null)
   const [invites, setInvites] = useState([])
+  const [screenAlert, setScreenAlert] = useState(null)
+  const [profileDirty, setProfileDirty] = useState(false)
   const [loading, setLoading] = useState({
     dashboard: false,
     profile: false,
@@ -198,6 +200,14 @@ function App() {
       return supported.some((sport) => (sport?._id || sport) === manualForm.sportId)
     })
   }, [locations, manualForm.sportId])
+  const isProfilePage = location.pathname === '/profile'
+
+  const showScreenAlert = (message, type = 'success') => {
+    setScreenAlert({ message, type })
+    setTimeout(() => {
+      setScreenAlert((current) => (current?.message === message ? null : current))
+    }, 3500)
+  }
 
   const syncUser = async (user) => {
     await apiFetch('/api/auth/sync', {
@@ -239,6 +249,7 @@ function App() {
       setInvites(invitesData || [])
     } catch (error) {
       setErrorMessage(error.message)
+      showScreenAlert(error.message || 'Action failed.', 'error')
     } finally {
       setLoading((prev) => ({ ...prev, dashboard: false }))
     }
@@ -295,6 +306,9 @@ function App() {
     if (!profile) {
       return
     }
+    if (isProfilePage && profileDirty) {
+      return
+    }
 
     setProfileForm({
       displayName: profile.displayName || '',
@@ -303,7 +317,8 @@ function App() {
       sports: profile.sports ? profile.sports.map((sport) => sport._id) : [],
       photoBase64: profile.photoBase64 || '',
     })
-  }, [profile])
+    setProfileDirty(false)
+  }, [profile, isProfilePage, profileDirty])
 
   useEffect(() => {
     if (!manualForm.locationId) return
@@ -409,6 +424,7 @@ function App() {
   }
 
   const handleProfileChange = (field, value) => {
+    setProfileDirty(true)
     setProfileForm((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -437,6 +453,7 @@ function App() {
   }
 
   const toggleSport = (sportId) => {
+    setProfileDirty(true)
     setProfileForm((prev) => {
       const current = new Set(prev.sports)
       if (current.has(sportId)) {
@@ -454,12 +471,55 @@ function App() {
     setErrorMessage('')
 
     try {
+      let payload = { ...profileForm }
+      const missingSkillLevel = !String(profileForm.skillLevel || '').trim()
+      const missingSports = !Array.isArray(profileForm.sports) || profileForm.sports.length === 0
+      const hasBio = String(profileForm.bio || '').trim().length > 0
+
+      if ((missingSkillLevel || missingSports) && hasBio) {
+        const useAi = window.confirm(
+          'You did not fully select level/sports. Do you want AI suggestions before saving?',
+        )
+
+        if (useAi) {
+          try {
+            const aiData = await apiFetch('/api/users/me/ai-suggestions', {
+              method: 'POST',
+              body: { bio: profileForm.bio },
+            })
+
+            const aiSkill = aiData?.skillLevel || ''
+            const aiSports = Array.isArray(aiData?.sports) ? aiData.sports : []
+            const confirmApply = window.confirm(
+              `AI suggests level: ${aiSkill || 'not detected'} and ${aiSports.length} sport(s). Apply these suggestions?`,
+            )
+
+            if (confirmApply) {
+              payload = {
+                ...payload,
+                skillLevel: missingSkillLevel ? aiSkill || payload.skillLevel : payload.skillLevel,
+                sports: missingSports ? (aiSports.length ? aiSports : payload.sports) : payload.sports,
+              }
+              setProfileForm((prev) => ({
+                ...prev,
+                skillLevel: payload.skillLevel,
+                sports: payload.sports,
+              }))
+            }
+          } catch (aiError) {
+            setErrorMessage(`AI suggestion failed: ${aiError.message}`)
+          }
+        }
+      }
+
       const updated = await apiFetch('/api/users/me', {
         method: 'PUT',
-        body: profileForm,
+        body: payload,
       })
       setProfile(updated)
+      setProfileDirty(false)
       setNotice('Profile updated!')
+      showScreenAlert('Profile updated successfully.')
     } catch (error) {
       setErrorMessage(error.message)
     } finally {
@@ -481,6 +541,7 @@ function App() {
     const reader = new FileReader()
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
+        setProfileDirty(true)
         setProfileForm((prev) => ({
           ...prev,
           photoBase64: reader.result,
@@ -491,6 +552,7 @@ function App() {
   }
 
   const handlePhotoClear = () => {
+    setProfileDirty(true)
     setProfileForm((prev) => ({ ...prev, photoBase64: '' }))
   }
 
@@ -591,6 +653,7 @@ function App() {
       })
       setSelectedSessionId(joined._id)
       setNotice('You joined the session.')
+      showScreenAlert('You joined the session.')
       await loadDashboard()
     } catch (error) {
       setErrorMessage(error.message)
@@ -616,6 +679,7 @@ function App() {
         setChatMessages([])
       }
       setNotice('Session deleted.')
+      showScreenAlert('Session deleted.')
       await loadDashboard()
     } catch (error) {
       setErrorMessage(error.message)
@@ -633,6 +697,7 @@ function App() {
         method: 'POST',
       })
       setNotice(`Broadcast sent to ${data.invitedCount || 0} users.`)
+      showScreenAlert(`Broadcast sent to ${data.invitedCount || 0} users.`)
     } catch (error) {
       setErrorMessage(error.message)
     } finally {
@@ -651,8 +716,10 @@ function App() {
       setInvites((prev) => prev.filter((invite) => invite._id !== inviteId))
       if (action === 'accept') {
         setNotice('Invite accepted.')
+        showScreenAlert('Invite accepted.')
       } else {
         setNotice('Invite refused.')
+        showScreenAlert('Invite refused.')
       }
       await loadDashboard()
     } catch (error) {
@@ -678,6 +745,7 @@ function App() {
         sports: data.sports?.length ? data.sports : prev.sports,
       }))
       setNotice('AI suggestions applied from profile description.')
+      showScreenAlert('AI suggestions applied.')
     } catch (error) {
       setErrorMessage(error.message)
     } finally {
@@ -699,6 +767,7 @@ function App() {
         setChatMessages([])
       }
       setNotice('You left the session.')
+      showScreenAlert('You left the session.')
       await loadDashboard()
     } catch (error) {
       setErrorMessage(error.message)
@@ -758,6 +827,7 @@ function App() {
       setLocations((prev) => [created, ...prev])
       setLocationForm({ name: '', address: '', priceEstimate: '', sportIds: [] })
       setNotice('Location added!')
+      showScreenAlert('Location added.')
     } catch (error) {
       setErrorMessage(getLocationErrorMessage(error))
     } finally {
@@ -971,6 +1041,20 @@ function App() {
                 Not Now
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {screenAlert && (
+        <div className="fixed left-1/2 top-6 z-50 w-[min(92vw,560px)] -translate-x-1/2">
+          <div
+            className={`rounded-2xl border px-5 py-4 shadow-2xl ${
+              screenAlert.type === 'error'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            }`}
+          >
+            <p className="text-sm font-semibold">{screenAlert.message}</p>
           </div>
         </div>
       )}

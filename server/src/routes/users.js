@@ -83,21 +83,26 @@ Bio: ${bio}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json',
-          },
+          generationConfig: { temperature: 0.2 },
         }),
       },
     )
 
-  let response = await callGemini('gemini-1.5-flash')
+  let response = await callGemini('gemini-2.0-flash')
+  if (!response.ok) {
+    response = await callGemini('gemini-1.5-flash')
+  }
   if (!response.ok) {
     response = await callGemini('gemini-1.5-flash-8b')
   }
 
   if (!response.ok) {
-    return res.status(502).json({ error: 'AI suggestion failed' })
+    let reason = 'AI suggestion failed'
+    try {
+      const errPayload = await response.json()
+      reason = errPayload?.error?.message || reason
+    } catch {}
+    return res.status(502).json({ error: reason })
   }
 
   const payload = await response.json()
@@ -106,7 +111,13 @@ Bio: ${bio}
   let parsed = {}
   try {
     const normalized = raw.replace(/```json|```/g, '').trim()
-    parsed = JSON.parse(normalized)
+    const jsonStart = normalized.indexOf('{')
+    const jsonEnd = normalized.lastIndexOf('}')
+    const jsonSlice =
+      jsonStart >= 0 && jsonEnd > jsonStart
+        ? normalized.slice(jsonStart, jsonEnd + 1)
+        : normalized
+    parsed = JSON.parse(jsonSlice)
   } catch {
     return res.status(502).json({ error: 'AI returned invalid JSON' })
   }
