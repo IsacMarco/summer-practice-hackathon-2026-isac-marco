@@ -40,6 +40,11 @@ export default function LocationsCard({
                                 Price: {location.priceEstimate}
                             </p>
                         )}
+                        {location.sports?.length > 0 && (
+                            <p className="mt-1 text-xs text-slate-400">
+                                Sports: {location.sports.map((sport) => sport.name).join(', ')}
+                            </p>
+                        )}
                     </div>
                 ))}
             </div>

@@ -7,6 +7,7 @@ const locationSchema = new mongoose.Schema(
     priceEstimate: { type: String, default: '' },
     lat: { type: Number },
     lng: { type: Number },
+    sports: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Sport' }],
   },
   { timestamps: true },
 )

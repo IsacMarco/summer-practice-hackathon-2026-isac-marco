@@ -17,10 +17,12 @@ const getAdminErrorMessage = (error) => {
 export default function AdminPage() {
     const [users, setUsers] = useState([])
     const [locations, setLocations] = useState([])
+    const [sports, setSports] = useState([])
     const [locationForm, setLocationForm] = useState({
         name: '',
         address: '',
         priceEstimate: '',
+        sportIds: [],
     })
     const [loading, setLoading] = useState({
         users: false,
@@ -59,13 +61,35 @@ export default function AdminPage() {
         }
     }
 
+    const loadSports = async () => {
+        try {
+            const data = await apiFetch('/api/sports')
+            setSports(data)
+        } catch (error) {
+            setErrorMessage(getAdminErrorMessage(error))
+        }
+    }
+
     useEffect(() => {
         loadUsers()
         loadLocations()
+        loadSports()
     }, [])
 
     const handleLocationChange = (field) => (event) => {
         setLocationForm((prev) => ({ ...prev, [field]: event.target.value }))
+    }
+
+    const toggleLocationSport = (sportId) => {
+        setLocationForm((prev) => {
+            const current = new Set(prev.sportIds || [])
+            if (current.has(sportId)) {
+                current.delete(sportId)
+            } else {
+                current.add(sportId)
+            }
+            return { ...prev, sportIds: [...current] }
+        })
     }
 
     const handleAddLocation = async (event) => {
@@ -80,7 +104,7 @@ export default function AdminPage() {
                 body: locationForm,
             })
             setLocations((prev) => [created, ...prev])
-            setLocationForm({ name: '', address: '', priceEstimate: '' })
+            setLocationForm({ name: '', address: '', priceEstimate: '', sportIds: [] })
             setNotice('Locatia a fost adaugata.')
         } catch (error) {
             setErrorMessage(getAdminErrorMessage(error))
@@ -185,6 +209,21 @@ export default function AdminPage() {
                             value={locationForm.priceEstimate}
                             onChange={handleLocationChange('priceEstimate')}
                         />
+                        <div className="flex flex-wrap gap-2">
+                            {sports.map((sport) => {
+                                const active = locationForm.sportIds.includes(sport._id)
+                                return (
+                                    <button
+                                        key={sport._id}
+                                        type="button"
+                                        className={`rounded-full px-3 py-1.5 text-xs font-semibold ${active ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'}`}
+                                        onClick={() => toggleLocationSport(sport._id)}
+                                    >
+                                        {sport.name}
+                                    </button>
+                                )
+                            })}
+                        </div>
                         <button
                             className="rounded-2xl bg-[#ff6b35] px-4 py-3 text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px]"
                             type="submit"
@@ -211,6 +250,11 @@ export default function AdminPage() {
                                     <p className="text-xs text-slate-500">
                                         {location.address || 'Address TBD'}
                                     </p>
+                                    {location.sports?.length > 0 && (
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Sporturi: {location.sports.map((sport) => sport.name).join(', ')}
+                                        </p>
+                                    )}
                                 </div>
                                 <button
                                     className="rounded-full border border-rose-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-rose-600 transition hover:border-rose-300 hover:text-rose-700"

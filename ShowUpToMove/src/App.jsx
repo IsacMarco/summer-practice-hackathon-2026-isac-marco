@@ -21,6 +21,7 @@ import PublicLocationsPage from './pages/PublicLocationsPage'
 import SessionsPage from './pages/SessionsPage'
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
+const PLAYER_LEVEL_OPTIONS = ['beginner', 'intermediate', 'advanced']
 
 const formatSessionTime = (value) => {
   if (!value) {
@@ -130,6 +131,7 @@ function App() {
   })
   const [sports, setSports] = useState([])
   const [sessions, setSessions] = useState([])
+  const [mySessions, setMySessions] = useState([])
   const [locations, setLocations] = useState([])
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [chatMessages, setChatMessages] = useState([])
@@ -138,11 +140,14 @@ function App() {
     sportId: '',
     scheduledAt: '',
     locationId: '',
+    desiredPlayerLevels: [...PLAYER_LEVEL_OPTIONS],
+    autoJoin: true,
   })
   const [locationForm, setLocationForm] = useState({
     name: '',
     address: '',
     priceEstimate: '',
+    sportIds: [],
   })
   const [notice, setNotice] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -164,6 +169,10 @@ function App() {
   }, [])
 
   const availabilityStatus = profile?.availability?.status || 'no'
+  const joinedSessionIds = useMemo(
+    () => new Set((mySessions || []).map((session) => session._id)),
+    [mySessions],
+  )
 
   const syncUser = async (user) => {
     await apiFetch('/api/auth/sync', {
@@ -180,10 +189,11 @@ function App() {
     setErrorMessage('')
 
     try {
-      const [profileData, sportsData, sessionsData, locationsData] =
+      const [profileData, sportsData, sessionsData, mySessionsData, locationsData] =
         await Promise.all([
           apiFetch('/api/users/me'),
           apiFetch('/api/sports'),
+          apiFetch('/api/sessions'),
           apiFetch('/api/sessions?me=1'),
           apiFetch('/api/locations'),
         ])
@@ -191,6 +201,7 @@ function App() {
       setProfile(profileData)
       setSports(sportsData)
       setSessions(sessionsData)
+      setMySessions(mySessionsData)
       setLocations(locationsData)
     } catch (error) {
       setErrorMessage(error.message)
@@ -217,6 +228,7 @@ function App() {
       } else {
         setProfile(null)
         setSessions([])
+        setMySessions([])
         setSports([])
         setLocations([])
         setSelectedSessionId('')
@@ -242,7 +254,14 @@ function App() {
   }, [profile])
 
   useEffect(() => {
-    if (!selectedSessionId) {
+    if (selectedSessionId && !joinedSessionIds.has(selectedSessionId)) {
+      setSelectedSessionId('')
+      setChatMessages([])
+    }
+  }, [selectedSessionId, joinedSessionIds])
+
+  useEffect(() => {
+    if (!selectedSessionId || !joinedSessionIds.has(selectedSessionId)) {
       return
     }
 
@@ -259,7 +278,7 @@ function App() {
     }
 
     loadChat()
-  }, [selectedSessionId])
+  }, [selectedSessionId, joinedSessionIds])
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault()
@@ -310,6 +329,23 @@ function App() {
 
   const handleManualChange = (field, value) => {
     setManualForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleManualLevelToggle = (level) => {
+    setManualForm((prev) => {
+      const current = new Set(prev.desiredPlayerLevels || [])
+      if (current.has(level)) {
+        current.delete(level)
+      } else {
+        current.add(level)
+      }
+
+      return {
+        ...prev,
+        desiredPlayerLevels:
+          current.size > 0 ? [...current] : [...PLAYER_LEVEL_OPTIONS],
+      }
+    })
   }
 
   const toggleSport = (sportId) => {
@@ -413,13 +449,21 @@ function App() {
         sportId: manualForm.sportId,
         scheduledAt: manualForm.scheduledAt || undefined,
         locationId: manualForm.locationId || undefined,
+        desiredPlayerLevels: manualForm.desiredPlayerLevels,
       }
       const created = await apiFetch('/api/sessions', {
         method: 'POST',
         body: payload,
       })
       setSessions((prev) => [created, ...prev])
-      setManualForm({ sportId: '', scheduledAt: '', locationId: '' })
+      setMySessions((prev) => [created, ...prev])
+      setManualForm({
+        sportId: '',
+        scheduledAt: '',
+        locationId: '',
+        desiredPlayerLevels: [...PLAYER_LEVEL_OPTIONS],
+        autoJoin: true,
+      })
       setNotice('Manual session created!')
     } catch (error) {
       setErrorMessage(error.message)
@@ -428,8 +472,41 @@ function App() {
     }
   }
 
+  const handleJoinSession = async (sessionId) => {
+    if (!sessionId) {
+      return
+    }
+
+    setLoading((prev) => ({ ...prev, session: true }))
+    setErrorMessage('')
+
+    try {
+      const joined = await apiFetch(`/api/sessions/${sessionId}/join`, {
+        method: 'POST',
+      })
+
+      setSessions((prev) =>
+        prev.map((session) => (session._id === joined._id ? joined : session)),
+      )
+      setMySessions((prev) => {
+        const exists = prev.some((session) => session._id === joined._id)
+        return exists ? prev : [joined, ...prev]
+      })
+      setSelectedSessionId(joined._id)
+      setNotice('You joined the session.')
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading((prev) => ({ ...prev, session: false }))
+    }
+  }
+
   const handleSendMessage = async () => {
-    if (!selectedSessionId || !chatDraft.trim()) {
+    if (
+      !selectedSessionId ||
+      !joinedSessionIds.has(selectedSessionId) ||
+      !chatDraft.trim()
+    ) {
       return
     }
 
@@ -461,7 +538,7 @@ function App() {
         body: locationForm,
       })
       setLocations((prev) => [created, ...prev])
-      setLocationForm({ name: '', address: '', priceEstimate: '' })
+      setLocationForm({ name: '', address: '', priceEstimate: '', sportIds: [] })
       setNotice('Location added!')
     } catch (error) {
       setErrorMessage(getLocationErrorMessage(error))
@@ -580,15 +657,22 @@ function App() {
                   notice={notice}
                   errorMessage={errorMessage}
                   sessions={sessions}
+                  mySessionIds={joinedSessionIds}
+                  currentUserId={profile?._id}
+                  onJoinSession={handleJoinSession}
                   selectedSessionId={selectedSessionId}
                   onSelectSession={setSelectedSessionId}
                   formatSessionTime={formatSessionTime}
                   loadingMatch={loading.match}
                   onMatch={handleMatch}
+                  availabilityStatus={availabilityStatus}
+                  todayLabel={todayLabel}
+                  onUpdateAvailability={updateAvailability}
                   sports={sports}
                   locations={locations}
                   manualForm={manualForm}
                   onManualChange={handleManualChange}
+                  onManualLevelToggle={handleManualLevelToggle}
                   onCreateSession={handleCreateSession}
                   loadingSession={loading.session}
                   locationForm={locationForm}
@@ -607,7 +691,7 @@ function App() {
                 <ChatPage
                   notice={notice}
                   errorMessage={errorMessage}
-                  sessions={sessions}
+                  sessions={mySessions}
                   selectedSessionId={selectedSessionId}
                   onSelectSession={setSelectedSessionId}
                   formatSessionTime={formatSessionTime}

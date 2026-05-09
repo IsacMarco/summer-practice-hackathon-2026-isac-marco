@@ -8,6 +8,7 @@ import User from '../models/User.js'
 import { getDefaultSessionTime } from '../utils/date.js'
 
 const router = express.Router()
+const ALLOWED_PLAYER_LEVELS = ['beginner', 'intermediate', 'advanced']
 
 router.get('/', requireAuth, async (req, res) => {
   const user = await User.findOne({ firebaseUid: req.user.uid })
@@ -42,7 +43,8 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'User not found' })
   }
 
-  const { sportId, scheduledAt, locationId, participantIds } = req.body
+  const { sportId, scheduledAt, locationId, participantIds, desiredPlayerLevels } =
+    req.body
   if (!sportId) {
     return res.status(400).json({ error: 'Sport is required' })
   }
@@ -50,6 +52,17 @@ router.post('/', requireAuth, async (req, res) => {
   const sport = await Sport.findById(sportId)
   if (!sport) {
     return res.status(404).json({ error: 'Sport not found' })
+  }
+
+  const normalizedLevels = Array.isArray(desiredPlayerLevels)
+    ? [...new Set(desiredPlayerLevels.map((level) => String(level).toLowerCase()))]
+    : []
+
+  if (
+    normalizedLevels.length > 0 &&
+    normalizedLevels.some((level) => !ALLOWED_PLAYER_LEVELS.includes(level))
+  ) {
+    return res.status(400).json({ error: 'Invalid player level selection' })
   }
 
   const participants = new Set(
@@ -63,6 +76,8 @@ router.post('/', requireAuth, async (req, res) => {
 
   const session = await Session.create({
     sport: sport._id,
+    desiredPlayerLevels:
+      normalizedLevels.length > 0 ? normalizedLevels : ALLOWED_PLAYER_LEVELS,
     participants: [...participants],
     captain: user._id,
     scheduledAt: scheduledAt ? new Date(scheduledAt) : getDefaultSessionTime(),
