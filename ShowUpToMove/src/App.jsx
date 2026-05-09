@@ -597,7 +597,7 @@ function App() {
               </RequireAuth>
             }
           />
-          <Route
+          {/* <Route
             path="/chat"
             element={
               <RequireAuth>
@@ -616,7 +616,7 @@ function App() {
                 />
               </RequireAuth>
             }
-          />
+          /> */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
